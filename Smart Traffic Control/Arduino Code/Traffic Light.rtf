@@ -1,0 +1,190 @@
+{\rtf1\ansi\ansicpg1252\cocoartf2822
+\cocoatextscaling0\cocoaplatform0{\fonttbl\f0\fswiss\fcharset0 Helvetica;}
+{\colortbl;\red255\green255\blue255;}
+{\*\expandedcolortbl;;}
+\paperw11900\paperh16840\margl1440\margr1440\vieww11520\viewh8400\viewkind0
+\pard\tx720\tx1440\tx2160\tx2880\tx3600\tx4320\tx5040\tx5760\tx6480\tx7200\tx7920\tx8640\pardirnatural\partightenfactor0
+
+\f0\fs24 \cf0 \
+\
+//TRAFFIC LIGHT SYSTEM\
+\
+#include <SPI.h>\
+#include <MFRC522.h>\
+\
+#define RST_PIN         9   // Configurable, see typical pin layout above\
+#define SS_PIN          10  // Configurable, see typical pin layout above\
+#define RED_LED         4   // Pin for Red LED\
+#define YELLOW_LED      5   // Pin for Yellow LED\
+#define GREEN_LED       6   // Pin for Green LED\
+#define EMERGENCY_LED   7   // Pin for Emergency LED\
+\
+MFRC522 mfrc522(SS_PIN, RST_PIN);   // Create MFRC522 instance\
+\
+int rfidCount = 0;  // Counter for unique RFID cards scanned\
+int emergencyCount = 0; // Counter for emergency cards scanned\
+unsigned long greenLightDuration = 5000;  // Default green light duration (5 seconds)\
+\
+void setup() \{\
+  Serial.begin(9600);       // Initialize serial communications with the PC\
+  SPI.begin();              // Init SPI bus\
+  mfrc522.PCD_Init();       // Init MFRC522 card\
+  Serial.println(F("Traffic light system is ready!"));\
+\
+  pinMode(RED_LED, OUTPUT);\
+  pinMode(YELLOW_LED, OUTPUT);\
+  pinMode(GREEN_LED, OUTPUT);\
+  pinMode(EMERGENCY_LED, OUTPUT);\
+\}\
+\
+void loop() \{\
+  // Red light ON (default duration of 10 seconds)\
+  digitalWrite(RED_LED, HIGH);\
+  digitalWrite(GREEN_LED, LOW);\
+  digitalWrite(YELLOW_LED, LOW);\
+  digitalWrite(EMERGENCY_LED, LOW);\
+  \
+  Serial.println(F("Scanning RFID cards..."));\
+  scanRFIDCards();  // Scan RFID cards during the red light period\
+\
+  // After RFID scanning is complete, set the green light duration based on the count\
+  greenLightDuration = 1000 + ((rfidCount - emergencyCount) * 2000) + (emergencyCount * 4000);  // 2 seconds per normal card, 5 seconds per emergency card\
+\
+  // Green light ON for calculated duration\
+  digitalWrite(GREEN_LED, HIGH);\
+  digitalWrite(RED_LED, LOW);\
+  Serial.print("Green light ON for ");\
+  Serial.print(greenLightDuration / 1000);\
+  Serial.println(" seconds.");\
+  delay(greenLightDuration);  // Green light stays on for the calculated duration\
+\
+  // Yellow light ON (transition)\
+  digitalWrite(GREEN_LED, LOW);\
+  digitalWrite(YELLOW_LED, HIGH);\
+  delay(3000);  // Yellow light stays on for 2 seconds\
+  digitalWrite(YELLOW_LED, LOW);\
+\
+  // Reset counters for the next cycle\
+  rfidCount = 0;\
+  emergencyCount = 0;\
+\
+  // Red light turns on again, starting the next cycle\
+\}\
+\
+void scanRFIDCards() \{\
+  unsigned long scanStartTime = millis();  // Record the start time for scanning\
+  unsigned long scanDuration = 10000;      // Set the scan duration to 10 seconds\
+  \
+  while (millis() - scanStartTime < scanDuration) \{  // Scan for 10 seconds\
+    // Look for new cards\
+    if (mfrc522.PICC_IsNewCardPresent()) \{\
+      // Select one of the cards\
+      if (mfrc522.PICC_ReadCardSerial()) \{\
+        // Process the UID of the scanned card\
+        Serial.println(F("Car Scanned"));\
+        rfidCount++;  // Increment the count for each card scanned\
+\
+        // Read and print the car number stored in block 2\
+        printCarNumber();\
+\
+        // Check for emergency condition\
+        checkEmergency();\
+\
+        // Halt PICC and stop encryption on the card\
+        mfrc522.PICC_HaltA();\
+        mfrc522.PCD_StopCrypto1();\
+      \}\
+    \} else \{\
+      // Add a small delay to prevent continuous polling\
+      delay(100);\
+    \}\
+  \}\
+\}\
+\
+void checkEmergency() \{\
+  byte buffer7[18];\
+  byte block = 6;\
+  byte len = 18;\
+  String storedString = "";\
+\
+  // Prepare key - all keys are set to FFFFFFFFFFFFh at chip delivery from the factory.\
+  MFRC522::MIFARE_Key key;\
+  for (byte i = 0; i < 6; i++) key.keyByte[i] = 0xFF;\
+\
+  // Authenticate the block\
+  MFRC522::StatusCode status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &key, &(mfrc522.uid));\
+  if (status != MFRC522::STATUS_OK) \{\
+    Serial.print(F("Authentication failed: "));\
+    Serial.println(mfrc522.GetStatusCodeName(status));\
+    return;\
+  \}\
+\
+  // Read the block\
+  status = mfrc522.MIFARE_Read(block, buffer7, &len);\
+  if (status != MFRC522::STATUS_OK) \{\
+    Serial.print(F("Reading failed: "));\
+    Serial.println(mfrc522.GetStatusCodeName(status));\
+    return;\
+  \}\
+\
+  // Convert bytes to string\
+  for (int i = 0; i < 16; i++) \{\
+    if (buffer7[i] != 0) \{  // Convert bytes to characters until the null terminator\
+      storedString += (char)buffer7[i];\
+    \}\
+  \}\
+\
+  // Check for emergency condition\
+  String emergencyString = "EMERGENCY"; // Emergency condition string\
+\
+  if (storedString.indexOf(emergencyString) != -1) \{ // Check if the emergency string is present\
+    Serial.println(F("Emergency detected! Activating emergency light."));\
+    digitalWrite(EMERGENCY_LED, HIGH); // Turn on the emergency LED\
+    delay(3000); // Keep the emergency light on for 1 second\
+    digitalWrite(EMERGENCY_LED, LOW); // Turn off the emergency LED\
+    emergencyCount++; // Increment emergency card count\
+  \}\
+\}\
+\
+void printCarNumber() \{\
+  byte buffer2[18];\
+  byte block = 2;  // Car number stored in block 2\
+  byte len = 18;\
+  String carNumber = "";\
+\
+  // Prepare key - all keys are set to FFFFFFFFFFFFh at chip delivery from the factory.\
+  MFRC522::MIFARE_Key key;\
+  for (byte i = 0; i < 6; i++) key.keyByte[i] = 0xFF;\
+\
+  // Authenticate the block\
+  MFRC522::StatusCode status = mfrc522.PCD_Authenticate(MFRC522::PICC_CMD_MF_AUTH_KEY_A, block, &key, &(mfrc522.uid));\
+  if (status != MFRC522::STATUS_OK) \{\
+    Serial.print(F("Authentication failed: "));\
+    Serial.println(mfrc522.GetStatusCodeName(status));\
+    return;\
+  \}\
+\
+  // Read the block\
+  status = mfrc522.MIFARE_Read(block, buffer2, &len);\
+  if (status != MFRC522::STATUS_OK) \{\
+    Serial.print(F("Reading failed: "));\
+    Serial.println(mfrc522.GetStatusCodeName(status));\
+    return;\
+  \}\
+\
+  // Convert bytes to string (car number)\
+  for (int i = 0; i < 16; i++) \{\
+    if (buffer2[i] != 0) \{  // Convert bytes to characters until the null terminator\
+      carNumber += (char)buffer2[i];\
+    \}\
+  \}\
+\
+  Serial.print(F("Car Number: "));\
+  Serial.println(carNumber);\
+\}\
+\
+\
+\
+\
+\
+}
