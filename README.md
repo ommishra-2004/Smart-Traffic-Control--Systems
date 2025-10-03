@@ -76,7 +76,7 @@ The hardware prototype demonstrates the RFID functionality for traffic, parking,
 
 3.  **Prepare RFID Cards (Write Data)**
     * Before running the main projects, you must write the vehicle data to the memory blocks of your RFID cards.
-    * Open the `Write_Data_to_RFID.ino` sketch provided in this repository. This sketch is designed to write all necessary information to the card in one go.
+    * Open the `Read and Write Tags.ino` sketch provided in this repository. This sketch is designed to write all necessary information to the card in one go.
     * Inside the sketch, update the placeholder variables at the top with the data for the first vehicle.
 
         ```c++
@@ -95,14 +95,14 @@ The hardware prototype demonstrates the RFID functionality for traffic, parking,
     * Repeat the process for each vehicle/card, changing the variables in the sketch as needed.
 
 4.  **Run the Main Projects**
-    * Once your cards are prepared, open one of the main project sketches (`Smart_Traffic.ino`, `Smart_Parking.ino`, or `Smart_Toll.ino`).
+    * Once your cards are prepared, open one of the main project sketches (`Traffic Lights.ino`, `Parking System.ino`, or `Tolling System.ino`).
     * Upload the sketch to your Arduino board.
     * Open the **Serial Monitor** to see the output and interact with the system.
 
 ---
 ## 💳 RFID Card Memory Map
 
-The system uses the following memory blocks on the MIFARE Classic 1K cards to store vehicle information:
+The system uses the following memory blocks on the MIFARE Classic 1K cards to store vehicle information (For Refernce) :
 +------------------------------------+
 |         MIFARE Classic 1K          |
 |------------------------------------|
@@ -120,6 +120,8 @@ The system uses the following memory blocks on the MIFARE Classic 1K cards to st
 |------------------------------------|
 | Block 10: Account Balance          |
 +------------------------------------+
+
+**Note:** you can change the Block No's as per your need while writng data into blocks but don't forget to then change everything in rest of the codes (like Parking systems.ino , Traffic Lights.ino etc)
 
 ---
 ## ⚡ Future Scope
